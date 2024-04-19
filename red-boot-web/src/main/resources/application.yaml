@@ -1,0 +1,79 @@
+#配置端口号:
+server:
+  port: 9081
+  #配置路径:
+  servlet:
+    context-path: /red # 此配置会在路径最开始添加自定义的内容
+    session:
+      # 让Tomcat只能从COOKIE中获取会话信息，这样，当没有Cookie时，URL也就不会被自动添加上 ;jsessionid=… 了。
+      tracking-modes: COOKIE
+
+
+#配置数据库：
+spring:
+  application:
+    name: red-cross-cli-template
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    type: com.alibaba.druid.pool.DruidDataSource
+    username: root
+    password: root
+    url: jdbc:mysql://127.0.0.1:3306/redcross?serverTimezone=GMT%2B8
+    druid:
+      stat-view-servlet:
+        # 默认true 内置监控页面首页/druid/index.html
+        enabled: true
+        url-pattern: /druid/*
+        # 允许清空统计数据
+        reset-enable: true
+        # 这里为登录页面账号密码配置
+        login-username: root
+        login-password: 123456
+        # IP白名单 多个逗号分隔
+        allow:
+        # IP黑名单
+        deny:
+      filter:
+        stat:
+          # 开启监控sql
+          enabled: true
+          # 显示并标注慢sql 默认当超过3秒显示
+          log-slow-sql: true
+          slow-sql-millis: 3000
+          merge-sql: true
+        # 防SQL注入过滤
+        wall:
+          config:
+            # 允许多条sql同时执行
+            multi-statement-allow: true
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  redis:
+    port: 6379
+    host: localhost # 129.211.215.211
+    database: 0
+    # password: 123456
+    jedis:
+      pool:
+        max-active: 8
+        max-wait: -1ms
+        max-idle: 8
+        min-idle: 0
+    timeout: 5000ms
+
+
+
+#mybatis-plus:
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    cache-enabled: false
+    # 配置JdbcTypeForNull
+    jdbc-type-for-null: 'null'
+  global-config:
+    db-config:
+      logic-not-delete-value: 0 # 未删除为 0
+      logic-delete-value: 1 # 删了就是 1
+    banner: false

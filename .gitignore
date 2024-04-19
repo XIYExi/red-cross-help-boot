@@ -1,0 +1,5 @@
+# Project exclude paths
+/red-boot-common/target/
+/red-boot-web/target/
+/red-rpc-core/target/
+/red-test-consumer/target/
