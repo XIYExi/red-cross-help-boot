@@ -1,11 +1,12 @@
 package com.red.rpc.core.config;
 
+import com.red.rpc.core.registry.RegistryKeys;
 import lombok.Data;
 
 @Data
 public class RegistryConfig {
 
-    private String registry = "etcd";
+    private String registry = RegistryKeys.ETCD;
 
     private String address = "http://localhost:2380";
 
