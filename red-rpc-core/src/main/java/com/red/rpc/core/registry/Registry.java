@@ -50,4 +50,11 @@ public interface Registry {
      */
     void destroy();
 
+
+    /**
+     * 监听（消费端）
+     * @param serviceNodeKey
+     */
+    void watch(String serviceNodeKey);
+
 }

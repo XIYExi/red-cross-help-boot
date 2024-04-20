@@ -1,24 +1,22 @@
 package com.red.rpc.core.registry;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.cron.CronUtil;
 import cn.hutool.cron.task.Task;
 import cn.hutool.json.JSONUtil;
 import com.red.rpc.core.config.RegistryConfig;
 import com.red.rpc.core.model.ServiceMetaInfo;
 import io.etcd.jetcd.*;
-import io.etcd.jetcd.kv.GetResponse;
-import io.etcd.jetcd.op.Op;
 import io.etcd.jetcd.options.GetOption;
 import io.etcd.jetcd.options.PutOption;
+import io.etcd.jetcd.watch.WatchEvent;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 public class EtcdRegistry implements Registry{
@@ -27,6 +25,10 @@ public class EtcdRegistry implements Registry{
 
     private KV kvClient;
 
+
+    private final RegistryServiceCache registryServiceCache = new RegistryServiceCache();
+
+    private final Set<String> watchingKeySet = new ConcurrentHashSet<>();
 
     /**
      * 本机注册的节点集合，用于维护续期
@@ -112,6 +114,12 @@ public class EtcdRegistry implements Registry{
 
     @Override
     public List<ServiceMetaInfo> serviceDiscovery(String serviceKey) {
+        // 优先从缓存中获取服务
+        List<ServiceMetaInfo> cacheServiceMetaInfoList = registryServiceCache.readCache();
+        if (cacheServiceMetaInfoList != null)
+            return cacheServiceMetaInfoList;
+
+        // 前缀搜索, 在结尾加上 '/'
         String searchPrefix = ETCD_ROOT_PATH + serviceKey + "/";
         try {
             // 前缀查询
@@ -124,6 +132,8 @@ public class EtcdRegistry implements Registry{
             // 解析服务信息
             return keyValues.stream()
                     .map(keyValue -> {
+                        String key = keyValue.getKey().toString(StandardCharsets.UTF_8);
+                        watch(key);
                         String value = keyValue.getValue().toString(StandardCharsets.UTF_8);
                         return JSONUtil.toBean(value, ServiceMetaInfo.class);
                     })
@@ -151,5 +161,28 @@ public class EtcdRegistry implements Registry{
             kvClient.close();
         if (client != null)
             client.close();
+    }
+
+    @Override
+    public void watch(String serviceNodeKey) {
+        Watch watchClient = client.getWatchClient();
+        // 之前没有被监听过，开启监听
+        boolean newWatch = watchingKeySet.add(serviceNodeKey);
+        if (newWatch) {
+            watchClient.watch(ByteSequence.from(serviceNodeKey, StandardCharsets.UTF_8), response -> {
+                for (WatchEvent event : response.getEvents()) {
+                    switch (event.getEventType()) {
+                        // key删除时触发
+                        case DELETE:
+                            // 清理注册服务缓存
+                            registryServiceCache.clearCache();
+                            break;
+                        case PUT:
+                        default:
+                            break;
+                    }
+                }
+            });
+        }
     }
 }
