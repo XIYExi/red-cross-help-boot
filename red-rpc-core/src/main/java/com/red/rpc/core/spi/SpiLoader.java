@@ -3,7 +3,6 @@ package com.red.rpc.core.spi;
 import cn.hutool.core.io.resource.ResourceUtil;
 import com.red.rpc.core.serializer.Serializer;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.ObjectUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -26,16 +25,16 @@ public class SpiLoader {
     /**
      * 对象实例缓存，避免重复new 类路径:对象实例， 单例模式
      */
-    private static Map<String, Object> instanceCache = new ConcurrentHashMap<>();
+    private static final Map<String, Object> instanceCache = new ConcurrentHashMap<>();
 
 
     private static final String RPC_SYSTEM_SPI_DIR = "META-INF/rpc/system/";
 
-    private static final String RPC_CUSTOM_SPI_DIR = "META-INF/rpc/custom";
+    private static final String RPC_CUSTOM_SPI_DIR = "META-INF/rpc/custom/";
 
     private static final String[] SCAN_DIRS = new String[]{RPC_SYSTEM_SPI_DIR, RPC_CUSTOM_SPI_DIR};
 
-    private static final List<Class<?>> LOAD_CLASS_LIST = List.of(Serializer.class);
+    private static final List<Class<?>> LOAD_CLASS_LIST = Arrays.asList(Serializer.class);
 
     /**
      * 加载所有类
@@ -58,8 +57,13 @@ public class SpiLoader {
     public static <T> T getInstance(Class<?> tClass, String key) {
         String tClassName = tClass.getName();
         Map<String, Class<?>> keyClassMap = loaderMap.get(tClassName);
-        if (ObjectUtils.isEmpty(keyClassMap)) {
-            throw new RuntimeException(String.format("SpiLoader 未加载%s类型", tClassName));
+
+        for (String _key : keyClassMap.keySet()) {
+            System.out.println("KeyClassMap: <[key]: " + _key + ", [value]: " + keyClassMap.get(_key).getName() + ">");
+        }
+
+        if (keyClassMap == null) {
+            throw new RuntimeException(String.format("SpiLoader 未加载 %s 类型", tClassName));
         }
         if (!keyClassMap.containsKey(key)) {
             throw new RuntimeException(String.format("SpiLoader 的%s不存在key=%s的类型", tClassName, key));
@@ -108,5 +112,18 @@ public class SpiLoader {
         }
         loaderMap.put(loadClass.getName(), keyClassMap);
         return keyClassMap;
+    }
+
+    public static void main(String[] args) {
+        String path = SCAN_DIRS[0] + Serializer.class.getName();
+        List<URL> resources = ResourceUtil.getResources(path);
+        for (URL resource : resources) {
+            System.out.println(resource.toString());
+        }
+
+        loadAll();
+        System.out.println(loaderMap);
+        Serializer serializer = getInstance(Serializer.class, "jdk");
+        System.out.println(serializer);
     }
 }

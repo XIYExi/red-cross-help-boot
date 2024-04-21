@@ -26,7 +26,7 @@ public class ProtocolMessageDecoder {
         header.setType(buffer.getByte(3));
         header.setStatus(buffer.getByte(4));
         header.setRequestId(buffer.getLong(5));
-        header.setBodyLength(buffer.getInt(6));
+        header.setBodyLength(buffer.getInt(13));
         // 解决粘包问题，只读取指定长度的数据
         byte[] bodyBytes = buffer.getBytes(17, 17 + header.getBodyLength());
         // 解析消息体

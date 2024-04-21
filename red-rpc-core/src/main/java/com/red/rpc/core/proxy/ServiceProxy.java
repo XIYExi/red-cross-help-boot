@@ -1,25 +1,36 @@
 package com.red.rpc.core.proxy;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.IdUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.red.rpc.core.RpcApplication;
 import com.red.rpc.core.config.RegistryConfig;
 import com.red.rpc.core.config.RpcConfig;
 import com.red.rpc.core.constant.RpcConstant;
+import com.red.rpc.core.loadbalancer.LoadBalancer;
+import com.red.rpc.core.loadbalancer.LoadBalancerFactory;
 import com.red.rpc.core.model.RpcRequest;
 import com.red.rpc.core.model.RpcResponse;
 import com.red.rpc.core.model.ServiceMetaInfo;
+import com.red.rpc.core.protocol.*;
 import com.red.rpc.core.registry.Registry;
 import com.red.rpc.core.registry.RegistryFactory;
 import com.red.rpc.core.serializer.JdkSerializer;
 import com.red.rpc.core.serializer.Serializer;
 import com.red.rpc.core.serializer.SerializerFactory;
+import com.red.rpc.core.server.tcp.VertxTcpClient;
+import io.vertx.core.Vertx;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.net.NetClient;
 
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 服务代理
@@ -38,10 +49,6 @@ public class ServiceProxy implements InvocationHandler {
                 .build();
 
         try {
-            // 序列化
-            byte[] bodyBytes = serializer.serializer(rpcRequest);
-
-
             // 从注册中心获取服务提供者的请求地址
             RpcConfig rpcConfig = RpcApplication.getRpcConfig();
             Registry registry = RegistryFactory.getInstance(rpcConfig.getRegistryConfig().getRegistry());
@@ -53,22 +60,17 @@ public class ServiceProxy implements InvocationHandler {
                 throw new RuntimeException("暂无服务地址");
             }
 
-            // 暂时获取第一个
-            ServiceMetaInfo selectedServiceMetaInfo = serviceMetaInfoList.get(0);
+            LoadBalancer loadBalancer = LoadBalancerFactory.getInstance(rpcConfig.getLoadBalancer());
+            // 将调用方法（请求路径）作为负载均衡器参数
+            Map<String, Object> requestParams = new HashMap<>();
+            requestParams.put("methodName", rpcRequest.getMethodName());
+            ServiceMetaInfo selectedServiceMetaInfo = loadBalancer.select(requestParams, serviceMetaInfoList);
 
-            // 发送请求
-            try (HttpResponse httpResponse = HttpRequest.post(selectedServiceMetaInfo.getServiceAddress())
-                    .body(bodyBytes)
-                    .execute()) {
-                byte[] result = httpResponse.bodyBytes();
-                // 反序列化
-                RpcResponse response = serializer.deserializer(result, RpcResponse.class);
-                return response.getData();
-            }
+            RpcResponse rpcResponse = VertxTcpClient.doRequest(rpcRequest, selectedServiceMetaInfo);
+            return rpcResponse.getData();
         } catch (Exception e) {
-            e.printStackTrace();
+            // e.printStackTrace();
+            throw new RuntimeException("调用失败");
         }
-
-        return null;
     }
 }
