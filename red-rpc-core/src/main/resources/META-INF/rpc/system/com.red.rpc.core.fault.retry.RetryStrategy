@@ -1,0 +1,2 @@
+no=com.red.rpc.core.fault.retry.NoRetryStrategy
+fixedInterval=com.rpc.core.fault.retry.FixedIntervalRetryStrategy

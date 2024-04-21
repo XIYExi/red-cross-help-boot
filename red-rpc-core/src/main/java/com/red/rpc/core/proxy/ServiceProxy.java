@@ -8,6 +8,8 @@ import com.red.rpc.core.RpcApplication;
 import com.red.rpc.core.config.RegistryConfig;
 import com.red.rpc.core.config.RpcConfig;
 import com.red.rpc.core.constant.RpcConstant;
+import com.red.rpc.core.fault.retry.RetryStrategy;
+import com.red.rpc.core.fault.retry.RetryStrategyFactory;
 import com.red.rpc.core.loadbalancer.LoadBalancer;
 import com.red.rpc.core.loadbalancer.LoadBalancerFactory;
 import com.red.rpc.core.model.RpcRequest;
@@ -60,13 +62,18 @@ public class ServiceProxy implements InvocationHandler {
                 throw new RuntimeException("暂无服务地址");
             }
 
+            // 负载均衡
             LoadBalancer loadBalancer = LoadBalancerFactory.getInstance(rpcConfig.getLoadBalancer());
             // 将调用方法（请求路径）作为负载均衡器参数
             Map<String, Object> requestParams = new HashMap<>();
             requestParams.put("methodName", rpcRequest.getMethodName());
             ServiceMetaInfo selectedServiceMetaInfo = loadBalancer.select(requestParams, serviceMetaInfoList);
 
-            RpcResponse rpcResponse = VertxTcpClient.doRequest(rpcRequest, selectedServiceMetaInfo);
+            // rpc请求
+            // 重试机制
+            RetryStrategy retryStrategy = RetryStrategyFactory.getInstance(rpcConfig.getRetryStrategy());
+            // RpcResponse rpcResponse = VertxTcpClient.doRequest(rpcRequest, selectedServiceMetaInfo);
+            RpcResponse rpcResponse = retryStrategy.doRetry(() -> VertxTcpClient.doRequest(rpcRequest, selectedServiceMetaInfo));
             return rpcResponse.getData();
         } catch (Exception e) {
             // e.printStackTrace();
